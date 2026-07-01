@@ -79,8 +79,13 @@ AI Research Assistant 2.0 improves my earlier AI Research Assistant project by a
 ## Main improvements include:
 
 Better PDF-based question answering
+
 Improved document chunking
+
 Vector search using ChromaDB
+
 Cleaner Streamlit interface
+
 More accurate answers using retrieved document context
+
 Better support for research papers and academic documents
