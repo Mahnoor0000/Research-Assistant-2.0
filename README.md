@@ -54,15 +54,15 @@ I ran five rounds of hand-written evaluation questions (50 total) against the PD
 
 ## Technologies Used
 
-Python, Streamlit
-LangChain (Groq, Chroma, HuggingFace integrations)
-Groq (Llama 3.1 8B Instant)
-ChromaDB
-Hugging Face sentence-transformers
-Cross-encoder reranking (ms-marco-MiniLM-L-6-v2)
-Tavily
-arXiv API
-Semantic Scholar API
+Python, Streamlit,
+LangChain (Groq, Chroma, HuggingFace integrations),
+Groq (Llama 3.1 8B Instant),
+ChromaDB,
+Hugging Face sentence-transformers,
+Cross-encoder reranking (ms-marco-MiniLM-L-6-v2),
+Tavily,
+arXiv API,
+Semantic Scholar API,
 
 
 ## How to Use
