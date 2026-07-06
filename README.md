@@ -1,91 +1,86 @@
 # AI Research Assistant 2.0
 
-AI Research Assistant 2.0 is an improved version of my earlier AI Research Assistant project. This version is designed to make research easier by allowing users to upload PDF documents and ask questions directly from the uploaded content using a Retrieval-Augmented Generation approach.
+An AI research assistant that lets you search academic papers, upload a PDF and ask questions grounded in its actual content, and chat with an LLM that can pull in live web results when needed. Built with LangChain, Groq, ChromaDB, and Tavily.
 
-The main goal of this project is to help students, researchers, and professionals quickly understand long research papers, reports, notes, and academic documents without manually reading the entire PDF.
+A significant part of this project was systematically testing the system to find out exactly where and why it fails — the findings below are from that process, not assumptions.
 
 ## Live Demo
 
 [AI Research Assistant 2.0 Live Demo](https://research-assistant-20-2dqhw7gtbhgnjym2zadyyq.streamlit.app/)
 
-## About the Project
+## What It Does
 
-Reading long research papers and academic documents can be time-consuming. AI Research Assistant 2.0 solves this problem by allowing users to interact with a PDF through natural language questions.
+**Paper Search** — searches arXiv and Semantic Scholar by topic or title, generates a structured report from the abstract, supports follow-up Q&A with real conversational memory.
 
-The app extracts text from an uploaded PDF, breaks the content into smaller chunks, stores those chunks in a vector database, and retrieves the most relevant information when the user asks a question. The retrieved context is then passed to a language model to generate a meaningful and document-based answer.
+**PDF Q&A (RAG)** — upload a PDF, ask questions grounded in the document via retrieval-augmented generation with cross-encoder reranking.
 
-This makes the assistant more useful for research because the answers are based on the uploaded document rather than only relying on general AI knowledge.
+**Web-Search Chatbot** — a general chatbot that can pull in live Tavily results for current-information questions, with memory folded into both the search query and the answer.
 
-## Key Features
+## Why This Isn't Just a Tutorial RAG Project
 
-- Upload and process PDF documents
-- Extract readable text from research papers and reports
-- Split long documents into smaller searchable chunks
-- Generate embeddings for document chunks
-- Store document embeddings in a vector database
-- Ask questions from the uploaded PDF
-- Retrieve the most relevant document content
-- Generate context-aware answers using an LLM
-- Simple and user-friendly Streamlit interface
-- Improved RAG-based workflow compared to the earlier version
+I ran five rounds of hand-written evaluation questions (50 total) against the PDF Q&A system — easy lookups, multi-step reasoning, adversarial traps, and unanswerable questions — then hand-graded every response and diagnosed *why* each failure happened.
 
-## Project Approach
+### What I Found
 
-This project follows a Retrieval-Augmented Generation pipeline.
+**Retrieval is strong on tabular/numeric facts, noticeably weaker on prose-only facts.** Table-based questions (accuracy, recall, p-values) were answered correctly close to 100% of the time. Facts stated plainly in dense prose (dataset names, methodology details, related-work citations) failed at a meaningfully higher rate, confirmed across all five rounds.
 
-First, the user uploads a PDF document through the Streamlit interface. The app reads the document and extracts its text. Since long documents cannot be passed directly to the language model, the extracted text is divided into smaller chunks.
+**The system can't reliably combine facts across separate retrieved chunks.** When two needed numbers existed in the *same* chunk, multi-step arithmetic worked correctly. When they were scattered across different chunks, the system defaulted to "I could not find this information" — even after correctly retrieving both numbers individually in an earlier turn. This points to retrieval, not reasoning, as the bottleneck.
 
-After chunking, embeddings are generated for each chunk. These embeddings convert the meaning of the text into numerical form. The chunks and their embeddings are then stored inside a Chroma vector database.
+**It can misattribute a cited result as the paper's own finding.** In one test, it presented a competing method's result — cited in the related-work section — as if the authors of this paper produced it themselves. A distinct failure from a retrieval miss: it found the right passage but conflated whose result it was.
 
-When the user asks a question, the question is also converted into an embedding. The vector database compares the question embedding with the stored document embeddings and retrieves the most relevant chunks.
+**Cross-encoder reranking (top-15 → rerank → top-4) fixed roughly half of the previously-failed retrieval questions**, including reconciling two different accuracy figures from two separate tables. It didn't fix the cross-chunk arithmetic or attribution issues — expected, since reranking changes what's retrieved, not what the model does with it.
 
-These retrieved chunks are used as context for the language model. The model then generates an answer based on the relevant document content. This improves the quality of the response because the answer is grounded in the uploaded PDF.
+**arXiv's title search fails on exact titles unless phrase-quoted.** An unquoted search for a confirmed-indexed paper returned five unrelated papers; quoting the title fixed it. A fallback chain (quoted title → broad keyword → shortened keyword) now guarantees non-empty results — but a realistically paraphrased query that previously returned nothing now returns five plausible but wrong results, with no signal of low confidence. A deliberate tradeoff, not an oversight.
+
+## Features
+
+* Search papers by topic or exact title across arXiv and Semantic Scholar
+* Auto-generated structured report from any selected paper's abstract
+* Follow-up Q&A on a paper's abstract, with real multi-turn memory
+* PDF upload, chunking, embedding, and Chroma vector storage
+* RAG-based PDF Q&A with cross-encoder reranking
+* Page-level source citations, kept separate from conversational memory so the model can't learn to imitate the citation format
+* General chatbot with optional live web search (Tavily)
+* Conversational memory across all three chat surfaces
+
+## Known Limitations (Found Through Testing)
+
+* Weaker retrieval on prose-only facts vs. tabular data
+* No reliable arithmetic/comparison across facts from separate chunks
+* Occasional attribution of a cited result to the wrong authors
+* Paraphrased title searches can return confident-looking but irrelevant results
+* Chat history has no truncation — will eventually hit context limits on long conversations
+* Web search quality depends entirely on Tavily's free tier
 
 ## Technologies Used
 
-- Python
-- Streamlit
-- LangChain
-- ChromaDB
-- Groq LLM
-- Hugging Face embeddings
-- PDF text extraction
-- Retrieval-Augmented Generation
+Python, Streamlit
+LangChain (Groq, Chroma, HuggingFace integrations)
+Groq (Llama 3.1 8B Instant)
+ChromaDB
+Hugging Face sentence-transformers
+Cross-encoder reranking (ms-marco-MiniLM-L-6-v2)
+Tavily
+arXiv API
+Semantic Scholar API
 
-## How to Use the App
+
+## How to Use
 
 1. Open the live demo link.
-2. Upload a PDF document.
-3. Wait for the app to process the document.
-4. Ask a question related to the uploaded PDF.
-5. The app retrieves relevant content and generates an answer.
+2. **Paper search:** enter a topic or exact title, select a result, generate a report, or ask follow-ups.
+3. **PDF Q&A:** upload a PDF, wait for processing, ask questions grounded in its content.
+4. **Chatbot:** ask anything; enable web search for current-information questions.
 
-Example questions:
-
-```text
+Example questions that work well:
+```
 What is the main idea of this paper?
 Summarize the methodology.
-What are the key findings?
-Explain the conclusion in simple words.
-What problem does this research solve?
-
+What was the reported accuracy of [model name]?
 ```
 
-# Improvements Over Earlier Version
-
-AI Research Assistant 2.0 improves my earlier AI Research Assistant project by adding a more complete Retrieval-Augmented Generation workflow.
-
-
-## Main improvements include:
-
-Better PDF-based question answering
-
-Improved document chunking
-
-Vector search using ChromaDB
-
-Cleaner Streamlit interface
-
-More accurate answers using retrieved document context
-
-Better support for research papers and academic documents
+Example questions known to stress the system:
+```
+Questions requiring combining two numbers from different sections
+Questions about details mentioned once, in prose, outside any table
+```
