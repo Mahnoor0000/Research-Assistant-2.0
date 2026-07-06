@@ -12,3 +12,4 @@ langchain-chroma
 chromadb
 sentence-transformers
 pypdf
+tavily-python

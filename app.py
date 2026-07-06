@@ -7,6 +7,7 @@ from research_assistant import (
     generate_paper_report,
     answer_question_about_selected_paper,
     chatbot_answer,
+    chatbot_answer_with_search
 )
 
 
@@ -30,6 +31,26 @@ if "chat_history" not in st.session_state:
 
 if "paper_chat_history" not in st.session_state:
     st.session_state.paper_chat_history = []
+
+if "pdf_chat_history" not in st.session_state:
+    st.session_state.pdf_chat_history = []
+
+if "pdf_display_history" not in st.session_state:
+    st.session_state.pdf_display_history = []
+
+
+def display_latest_first(history):
+    """Render a flat [user, assistant, user, assistant...] list with the
+    most recent Q&A pair on top, but each pair still shows You then Assistant."""
+    pairs = [history[i:i + 2] for i in range(0, len(history), 2)]
+
+    for pair in reversed(pairs):
+        for message in pair:
+            if message["role"] == "user":
+                st.markdown(f"**You:** {message['content']}")
+            else:
+                st.markdown(f"**Assistant:** {message['content']}")
+        st.divider()
 
 
 page = st.sidebar.radio(
@@ -102,11 +123,7 @@ if page == "Search Papers":
             else:
                 st.warning("Please enter a question.")
 
-        for message in st.session_state.paper_chat_history:
-            if message["role"] == "user":
-                st.markdown(f"**You:** {message['content']}")
-            else:
-                st.markdown(f"**Assistant:** {message['content']}")
+        display_latest_first(st.session_state.paper_chat_history)
 
 
 elif page == "PDF Q&A":
@@ -117,6 +134,8 @@ elif page == "PDF Q&A":
     if uploaded_pdf and st.button("Process PDF"):
         with st.spinner("Processing PDF..."):
             st.session_state.pdf_data = extract_pdf_text_chunked(uploaded_pdf)
+            st.session_state.pdf_chat_history = []       # clean history fed back into the model
+            st.session_state.pdf_display_history = []    # decorated history shown to the user
 
         st.success("PDF processed successfully.")
 
@@ -126,28 +145,58 @@ elif page == "PDF Q&A":
         if st.button("Ask PDF"):
             if question.strip():
                 with st.spinner("Answering..."):
-                    answer = answer_with_rag(
+                    result = answer_with_rag(
                         st.session_state.pdf_data,
-                        question
+                        question,
+                        history=st.session_state.pdf_chat_history,
                     )
 
-                st.markdown(answer)
+                # clean answer only — fed back into the model as history, never contains
+                # the "Sources:" footer, so the model can't start imitating that formatting
+                st.session_state.pdf_chat_history.append({
+                    "role": "user",
+                    "content": question
+                })
+                st.session_state.pdf_chat_history.append({
+                    "role": "assistant",
+                    "content": result["answer"]
+                })
+
+                # decorated answer with sources — only for display, never fed back to the model
+                st.session_state.pdf_display_history.append({
+                    "role": "user",
+                    "content": question
+                })
+                st.session_state.pdf_display_history.append({
+                    "role": "assistant",
+                    "content": result["display"]
+                })
             else:
                 st.warning("Please enter a question.")
+
+        display_latest_first(st.session_state.pdf_display_history)
 
 
 elif page == "Chatbot":
     st.header("General Chatbot")
+
+    use_search = st.checkbox("Search the web for current information")
 
     user_message = st.text_area("Ask anything")
 
     if st.button("Send"):
         if user_message.strip():
             with st.spinner("Thinking..."):
-                reply = chatbot_answer(
-                    user_message,
-                    history=st.session_state.chat_history,
-                )
+                if use_search:
+                    reply = chatbot_answer_with_search(
+                        user_message,
+                        history=st.session_state.chat_history,
+                    )
+                else:
+                    reply = chatbot_answer(
+                        user_message,
+                        history=st.session_state.chat_history,
+                    )
 
             st.session_state.chat_history.append({
                 "role": "user",
@@ -161,8 +210,4 @@ elif page == "Chatbot":
         else:
             st.warning("Please enter a message.")
 
-    for message in st.session_state.chat_history:
-        if message["role"] == "user":
-            st.markdown(f"**You:** {message['content']}")
-        else:
-            st.markdown(f"**Assistant:** {message['content']}")
+    display_latest_first(st.session_state.chat_history)
